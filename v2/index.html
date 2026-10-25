@@ -1,1 +1,20 @@
-
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>NFO Maker</title>
+<link rel="stylesheet" href="style.css?v=1">
+</head><body><main>
+<h1>NFO Maker</h1>
+<details id="kd"><summary>API keys (stored in this browser only)</summary><div>
+<input id="tk" placeholder="TMDB API key (v3)" autocomplete="off"><input id="ok" placeholder="OMDb API key" autocomplete="off"><button id="sk">Save keys</button></div></details>
+<form id="sf"><select id="ty"><option value="tv">TV show</option><option value="movie">Movie</option></select>
+<input id="q" placeholder="Search a title" required><button>Search</button></form>
+<div id="res"></div><div id="cfg"></div><div id="out"></div>
+<p class="m" style="font-size:12px">This product uses the TMDB API but is not endorsed or certified by TMDB.</p>
+</main>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="utils.js?v=1"></script>
+<script src="api.js?v=1"></script>
+<script src="nfo.js?v=1"></script>
+<script src="export.js?v=1"></script>
+<script src="main.js?v=1"></script>
+</body></html>
