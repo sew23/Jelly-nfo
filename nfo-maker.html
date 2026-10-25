@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>NFO Maker</title>
+<style>
+:root{--bg:#12161c;--pn:#1b212b;--ln:#2c3542;--tx:#e6e8eb;--mu:#8b95a5;--ac:#e0a82e;--ok:#6fbf8b}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.5 system-ui,sans-serif}
+main{max-width:860px;margin:0 auto;padding:20px 16px 60px}
+h1{font:600 28px Georgia,serif;margin:0 0 14px}h3{font:600 16px Georgia,serif;margin:18px 0 6px}
+input,select,textarea,button{font:inherit;color:var(--tx);background:var(--pn);border:1px solid var(--ln);border-radius:6px;padding:8px 10px}
+input,textarea{width:100%}textarea{resize:vertical;margin-top:4px}
+button{cursor:pointer;background:var(--ac);color:#12161c;border:0;font-weight:600}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--ac);outline-offset:1px}
+details{margin-bottom:12px;color:var(--mu)}details div{display:grid;gap:6px;margin-top:8px}
+#sf{display:flex;gap:6px}#sf input{flex:1}
+.r{display:block;width:100%;text-align:left;background:var(--pn);color:var(--tx);font-weight:400;border:1px solid var(--ln);margin-top:6px}
+.r small{display:block;color:var(--mu)}.r:hover{border-color:var(--ac)}
+.fl{border-left:3px solid var(--ac);background:var(--pn);padding:8px 12px;margin:12px 0}.fl ul{margin:4px 0 0;padding-left:18px}
+.m{color:var(--mu)}label{display:block;margin-top:10px;color:var(--mu)}
+.g{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.cf{display:grid;grid-template-columns:2fr 1fr 1fr auto;gap:6px;margin-top:10px;align-items:end}
+.ep{border-top:1px solid var(--ln);padding:10px 0}.ep .h{display:flex;gap:6px}.ep .h input:last-child{width:70px}
+#dl{margin-top:18px;width:100%;padding:12px}
+@media(max-width:560px){.cf{grid-template-columns:1fr 1fr}}
+</style></head><body><main>
+<h1>NFO Maker</h1>
+<details id="kd"><summary>API keys (stored in this browser only)</summary><div>
+<input id="tk" placeholder="TMDB API key (v3)" autocomplete="off"><input id="ok" placeholder="OMDb API key" autocomplete="off"><button id="sk">Save keys</button></div></details>
+<form id="sf"><select id="ty"><option value="tv">TV show</option><option value="movie">Movie</option></select>
+<input id="q" placeholder="Search a title" required><button>Search</button></form>
+<div id="res"></div><div id="cfg"></div><div id="out"></div>
+</main>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script>
+const $=id=>document.getElementById(id),T='https://api.themoviedb.org/3';
+let S={},flags=[];
+const K=()=>({t:$('tk').value.trim(),o:$('ok').value.trim()});
+try{$('tk').value=localStorage.tk||'';$('ok').value=localStorage.ok||'';if(!localStorage.tk)$('kd').open=true}catch(e){}
+$('sk').onclick=()=>{try{localStorage.tk=K().t;localStorage.ok=K().o;$('kd').open=false}catch(e){}};
+const esc=s=>String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+const safe=s=>s.replace(/[:?*"<>|\/\\]/g,'').replace(/\s+/g,' ').trim(),pad=n=>String(n).padStart(2,'0');
+const tag=(n,v)=>v==null||v===''?'':`  <${n}>${esc(v)}</${n}>\n`;
+const uq=(v,i,a)=>a.indexOf(v)==i;
+const outl=t=>(t||'').split(/(?<=[.!?])\s/)[0];
+const msg=m=>{$('out').innerHTML=`<p class="m">${esc(m)}</p>`};
+async function tm(p,x=''){if(!K().t)throw new Error('Add your TMDB key first.');const r=await fetch(`${T}${p}?api_key=${K().t}&language=en-US${x}`);if(!r.ok)throw new Error('TMDB error '+r.status);return r.json()}
+async function omdb(id){const k=K().o;
+ if(!k){flags.push('No OMDb key: IMDb and Rotten Tomatoes ratings omitted.');return{}}
+ if(!id){flags.push('No IMDb id found: ratings omitted.');return{}}
+ try{const j=await(await fetch(`https://www.omdbapi.com/?i=${id}&apikey=${k}`)).json();
+  if(j.Response=='False'){flags.push('OMDb: '+j.Error);return{}}
+  const rt=(j.Ratings||[]).find(r=>r.Source=='Rotten Tomatoes'),ok=v=>v&&v!='N/A';
+  return{imdb:ok(j.imdbRating)?j.imdbRating:null,votes:ok(j.imdbVotes)?j.imdbVotes.replace(/\D/g,''):null,rt:rt?parseInt(rt.Value):null}
+ }catch(e){flags.push('OMDb request failed: '+e.message);return{}}}
+$('sf').onsubmit=async e=>{e.preventDefault();$('cfg').innerHTML=$('out').innerHTML='';
+ try{const ty=$('ty').value,d=await tm('/search/'+ty,'&query='+encodeURIComponent($('q').value));
+  $('res').innerHTML=d.results.slice(0,8).map(r=>`<button class="r" data-id="${r.id}">${esc(r.title||r.name)} (${(r.release_date||r.first_air_date||'').slice(0,4)||'?'})<small>${esc((r.overview||'').slice(0,150))}</small></button>`).join('')||'<p class="m">No results.</p>';
+  document.querySelectorAll('.r').forEach(b=>b.onclick=()=>pick(ty,b.dataset.id));
+ }catch(x){msg(x.message)}};
+async function pick(ty,id){try{$('res').innerHTML=$('cfg').innerHTML='';msg('Loading…');flags=[];
+ const d=await tm(`/${ty}/${id}`,'&append_to_response=credits,external_ids,'+(ty=='tv'?'content_ratings':'release_dates'));
+ S={ty,d,om:await omdb(d.external_ids?.imdb_id)};
+ if(ty=='movie'){if((Date.now()-new Date(d.release_date))/864e5<45)flags.push('Recent release: ratings are early and volatile.');render()}
+ else{$('out').innerHTML='';$('cfg').innerHTML=`<h3>${esc(d.name)}</h3><div class="cf"><label>Season<select id="sn">${d.seasons.filter(s=>s.season_number>0).map(s=>`<option value="${s.season_number}">Season ${s.season_number} (${s.episode_count} eps)</option>`).join('')}</select></label><label>From ep<input id="ef" type="number" min="1"></label><label>To ep<input id="et" type="number" min="1"></label><button id="go">Fetch episodes</button></div>`;
+  $('go').onclick=loadSeason}
+ }catch(x){msg(x.message)}}
+async function loadSeason(){try{msg('Loading…');const n=+$('sn').value,s=await tm(`/tv/${S.d.id}/season/${n}`);
+ const a=+$('ef').value||1,b=+$('et').value||999,today=new Date().toISOString().slice(0,10);
+ const sel=s.episodes.filter(e=>e.episode_number>=a&&e.episode_number<=b);
+ const aired=sel.filter(e=>e.air_date&&e.air_date<=today),un=sel.filter(e=>!(e.air_date&&e.air_date<=today));
+ flags=flags.filter(f=>!/^(Not aired|Season is new|Source|TMDB and TVmaze|TVmaze)/.test(f));
+ if(un.length)flags.push('Not aired yet, excluded: '+un.map(e=>'E'+pad(e.episode_number)+' '+(e.air_date||'TBA')).join(', '));
+ const last=aired.at(-1)?.air_date;if(last&&(Date.now()-new Date(last))/864e5<45)flags.push('Season is new or ongoing: ratings are early and volatile.');
+ S.sn=n;S.season=s;S.eps=aired;await cross();render();
+ }catch(x){msg(x.message)}}
+async function cross(){try{const id=S.d.external_ids?.imdb_id,sh=await(await fetch('https://api.tvmaze.com/lookup/shows?imdb='+id)).json(),
+ l=await(await fetch(`https://api.tvmaze.com/shows/${sh.id}/episodes`)).json(),n=s=>(s||'').toLowerCase().replace(/[^a-z0-9]/g,''),df=[];
+ S.eps.forEach(e=>{const m=l.find(x=>x.season==S.sn&&x.number==e.episode_number),k='E'+pad(e.episode_number);
+  if(!m)df.push(k+' missing on TVmaze');else{if(n(m.name)!=n(e.name))df.push(`${k} title: TMDB "${e.name}" vs TVmaze "${m.name}"`);
+  if(m.airdate&&e.air_date&&m.airdate!=e.air_date)df.push(`${k} date: TMDB ${e.air_date} vs TVmaze ${m.airdate}`)}});
+ flags.push(df.length?'Source mismatch (TMDB used, edit below if needed): '+df.slice(0,6).join('; '):'TMDB and TVmaze agree on titles and dates.')
+ }catch(e){flags.push('TVmaze cross-check unavailable.')}}
+function render(){const{ty,d,om}=S;let h='';
+ if(flags.length)h+='<div class="fl"><b>Flags</b><ul>'+flags.map(f=>`<li>${esc(f)}</li>`).join('')+'</ul></div>';
+ h+=`<p class="m">${ty=='tv'?'Series-level':'Movie'} ratings from OMDb: IMDb ${om.imdb?om.imdb+' ('+Number(om.votes).toLocaleString()+' votes)':'n/a'}, Rotten Tomatoes critics ${om.rt!=null?om.rt+'%':'n/a'}</p>`;
+ if(ty=='movie')h+=`<label>Title<input id="mt0" value="${esc(d.title)}"></label><label>Runtime (min)<input id="mr" value="${d.runtime||''}"></label><label>Tagline<input id="mg" value="${esc(d.tagline)}"></label><label>Plot<textarea id="mp" rows="5">${esc(d.overview)}</textarea></label>`;
+ else h+=`<label>Season plot<textarea id="sp" rows="3">${esc(S.season.overview||d.overview)}</textarea></label><h3>Season ${S.sn} ratings</h3><p class="m">Optional. Type the season scores from rottentomatoes.com; they go in the season file only.</p><div class="g"><input id="mt" placeholder="Tomatometer %"><input id="mc" placeholder="Review count"><input id="pm" placeholder="Popcornmeter %"></div><h3>Episodes</h3>`+
+  S.eps.map((e,i)=>`<div class="ep"><div class="h"><input data-i="${i}" data-f="name" value="${esc(e.name)}" aria-label="Title E${e.episode_number}"><input data-i="${i}" data-f="rt" value="${e.runtime||''}" placeholder="min" aria-label="Runtime"></div><textarea data-i="${i}" data-f="ov" rows="3" aria-label="Plot">${esc(e.overview)}</textarea></div>`).join('')||'<p class="m">No aired episodes in that range.</p>';
+ if(ty=='movie'||S.eps.length)h+=`<button id="dl">${ty=='tv'?'Download zip':'Download movie.nfo'}</button>`;
+ $('out').innerHTML=h;if($('dl'))$('dl').onclick=download}
+const H='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n';
+function ratings(l){l=l.filter(r=>r.value!=null&&r.value!==''&&!isNaN(r.value));if(!l.length)return'';
+ return'  <ratings>\n'+l.map((r,i)=>`    <rating name="${r.name}" max="${r.max}"${i?'':' default="true"'}>\n      <value>${r.value}</value>\n`+(r.votes?`      <votes>${r.votes}</votes>\n`:'')+'    </rating>\n').join('')+'  </ratings>\n'}
+const acts=l=>(l||[]).slice(0,20).map((a,i)=>`  <actor>\n    <name>${esc(a.name)}</name>\n    <role>${esc(a.character)}</role>\n    <order>${i}</order>\n  </actor>\n`).join('');
+const gen=d=>(d.genres||[]).map(g=>tag('genre',g.name)).join('');
+const stu=d=>[...(d.networks||[]),...(d.production_companies||[])].map(c=>c.name).filter(uq).map(n=>tag('studio',n)).join('');
+const cty=d=>(d.production_countries||[]).map(c=>tag('country',c.name)).join('');
+const crew=(c,j)=>(c||[]).filter(x=>j.includes(x.job)).map(x=>x.name).filter(uq);
+const uid=d=>`  <uniqueid type="tmdb" default="true">${d.id}</uniqueid>\n`+(d.external_ids?.imdb_id||d.imdb_id?`  <uniqueid type="imdb">${d.external_ids?.imdb_id||d.imdb_id}</uniqueid>\n`:'');
+const rts=()=>ratings([{name:'imdb',max:10,value:S.om.imdb,votes:S.om.votes},{name:'tomatometerallcritics',max:100,value:S.om.rt}]);
+const tvMpaa=()=>(S.d.content_ratings?.results||[]).find(r=>r.iso_3166_1=='US')?.rating;
+const mvMpaa=()=>((S.d.release_dates?.results||[]).find(r=>r.iso_3166_1=='US')?.release_dates||[]).map(x=>x.certification).find(Boolean);
+function movieNfo(){const d=S.d,p=$('mp').value,c=d.credits?.crew;
+ return H+'<movie>\n'+tag('title',$('mt0').value)+tag('originaltitle',d.original_title)+tag('year',(d.release_date||'').slice(0,4))+tag('premiered',d.release_date)+tag('releasedate',d.release_date)+tag('runtime',$('mr').value)+tag('plot',p)+tag('outline',outl(p))+tag('tagline',$('mg').value)+gen(d)+crew(c,['Director']).map(n=>tag('director',n)).join('')+crew(c,['Writer','Screenplay']).map(n=>tag('credits',n)).join('')+acts(d.credits?.cast)+stu(d)+tag('mpaa',mvMpaa())+cty(d)+uid(d)+rts()+'</movie>\n'}
+function tvNfo(){const d=S.d;return H+'<tvshow>\n'+tag('title',d.name)+tag('originaltitle',d.original_name)+tag('showtitle',d.name)+tag('premiered',d.first_air_date)+tag('plot',d.overview)+tag('outline',outl(d.overview))+gen(d)+stu(d)+cty(d)+tag('mpaa',tvMpaa())+tag('status',d.status=='Returning Series'?'Continuing':d.status=='Ended'||d.status=='Canceled'?'Ended':'')+uid(d)+rts()+acts(d.credits?.cast)+'</tvshow>\n'}
+function seasonNfo(){const s=S.season,p=$('sp').value;
+ return H+'<season>\n'+tag('title','Season '+S.sn)+tag('seasonnumber',S.sn)+tag('premiered',s.air_date)+tag('year',(s.air_date||'').slice(0,4))+tag('plot',p)+tag('outline',outl(p))+ratings([{name:'tomatometerallcritics',max:100,value:$('mt').value.trim(),votes:$('mc').value.trim()},{name:'tomatometeraudience',max:100,value:$('pm').value.trim()}])+'</season>\n'}
+function epNfo(e,i){const q=f=>document.querySelector(`[data-i="${i}"][data-f="${f}"]`).value,p=q('ov');
+ return H+'<episodedetails>\n'+tag('title',q('name'))+tag('showtitle',S.d.name)+tag('season',S.sn)+tag('episode',e.episode_number)+tag('aired',e.air_date)+tag('premiered',e.air_date)+tag('runtime',q('rt'))+tag('plot',p)+crew(e.crew,['Director']).map(n=>tag('director',n)).join('')+crew(e.crew,['Writer','Screenplay','Teleplay']).map(n=>tag('credits',n)).join('')+tag('studio',(S.d.networks||[])[0]?.name)+tag('mpaa',tvMpaa())+acts(e.guest_stars)+'</episodedetails>\n'}
+function save(n,c){const a=document.createElement('a');a.href=URL.createObjectURL(c instanceof Blob?c:new Blob([c],{type:'text/xml'}));a.download=n;a.click()}
+function download(){const f={};
+ if(S.ty=='movie')f['movie.nfo']=movieNfo();
+ else{f['tvshow.nfo']=tvNfo();f[`season${pad(S.sn)}.nfo`]=seasonNfo();const sh=safe(S.d.name);S.eps.forEach((e,i)=>f[`${sh} S${pad(S.sn)}E${pad(e.episode_number)}.nfo`]=epNfo(e,i))}
+ const bad=Object.keys(f).filter(k=>new DOMParser().parseFromString(f[k],'text/xml').querySelector('parsererror'));
+ if(bad.length){alert('Invalid XML in: '+bad.join(', '));return}
+ if(S.ty=='movie')return save('movie.nfo',f['movie.nfo']);
+ const z=new JSZip();for(const k in f)z.file(k,f[k]);
+ z.generateAsync({type:'blob'}).then(b=>save(`${safe(S.d.name)} S${pad(S.sn)} NFO.zip`,b))}
+</script></body></html>
