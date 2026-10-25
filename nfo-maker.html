@@ -20,6 +20,7 @@ details{margin-bottom:12px;color:var(--mu)}details div{display:grid;gap:6px;marg
 .cf{display:grid;grid-template-columns:2fr 1fr 1fr auto;gap:6px;margin-top:10px;align-items:end}
 .ep{border-top:1px solid var(--ln);padding:10px 0}.ep .h{display:flex;gap:6px}.ep .h input:last-child{width:70px}
 #dl{margin-top:18px;width:100%;padding:12px}
+.im{display:flex;gap:14px;flex-wrap:wrap}.im label{margin:0}.im img{display:block;height:90px;margin-top:4px;border-radius:4px;background:var(--pn)}
 @media(max-width:560px){.cf{grid-template-columns:1fr 1fr}}
 </style></head><body><main>
 <h1>NFO Maker</h1>
@@ -28,6 +29,7 @@ details{margin-bottom:12px;color:var(--mu)}details div{display:grid;gap:6px;marg
 <form id="sf"><select id="ty"><option value="tv">TV show</option><option value="movie">Movie</option></select>
 <input id="q" placeholder="Search a title" required><button>Search</button></form>
 <div id="res"></div><div id="cfg"></div><div id="out"></div>
+<p class="m" style="font-size:12px">This product uses the TMDB API but is not endorsed or certified by TMDB.</p>
 </main>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script>
@@ -56,24 +58,33 @@ $('sf').onsubmit=async e=>{e.preventDefault();$('cfg').innerHTML=$('out').innerH
   $('res').innerHTML=d.results.slice(0,8).map(r=>`<button class="r" data-id="${r.id}">${esc(r.title||r.name)} (${(r.release_date||r.first_air_date||'').slice(0,4)||'?'})<small>${esc((r.overview||'').slice(0,150))}</small></button>`).join('')||'<p class="m">No results.</p>';
   document.querySelectorAll('.r').forEach(b=>b.onclick=()=>pick(ty,b.dataset.id));
  }catch(x){msg(x.message)}};
+async function imgs(ty,d){let lg=null;
+ try{const im=await tm(`/${ty}/${d.id}/images`,'&include_image_language=en,null'),L=(im.logos||[]).filter(x=>x.file_path.endsWith('.png')).sort((a,b)=>(b.iso_639_1=='en')-(a.iso_639_1=='en')||b.vote_average-a.vote_average);lg=L[0]?.file_path}catch(e){}
+ return{poster:d.poster_path,backdrop:d.backdrop_path,logo:lg}}
 async function pick(ty,id){try{$('res').innerHTML=$('cfg').innerHTML='';msg('Loading…');flags=[];
  const d=await tm(`/${ty}/${id}`,'&append_to_response=credits,external_ids,'+(ty=='tv'?'content_ratings':'release_dates'));
- S={ty,d,om:await omdb(d.external_ids?.imdb_id)};
+ S={ty,d,om:await omdb(d.external_ids?.imdb_id)};S.img=await imgs(ty,d);
  if(ty=='movie'){if((Date.now()-new Date(d.release_date))/864e5<45)flags.push('Recent release: ratings are early and volatile.');render()}
- else{$('out').innerHTML='';$('cfg').innerHTML=`<h3>${esc(d.name)}</h3><div class="cf"><label>Season<select id="sn">${d.seasons.filter(s=>s.season_number>0).map(s=>`<option value="${s.season_number}">Season ${s.season_number} (${s.episode_count} eps)</option>`).join('')}</select></label><label>From ep<input id="ef" type="number" min="1"></label><label>To ep<input id="et" type="number" min="1"></label><button id="go">Fetch episodes</button></div>`;
+ else{$('out').innerHTML='';$('cfg').innerHTML=`<h3>${esc(d.name)}</h3><div class="cf"><label>Season<select id="sn">${d.seasons.filter(s=>s.season_number>0).map(s=>`<option value="${s.season_number}">Season ${s.season_number} (${s.episode_count} eps)</option>`).join('')}</select></label><label>From ep<input id="ef" type="number" min="1"></label><label>To ep<input id="et" type="number" min="1"></label><button id="go">Fetch episodes</button></div><label><input id="fu" type="checkbox" style="width:auto;margin-right:6px">Include episodes not yet marked as aired</label>`;
   $('go').onclick=loadSeason}
  }catch(x){msg(x.message)}}
-async function loadSeason(){try{msg('Loading…');const n=+$('sn').value,s=await tm(`/tv/${S.d.id}/season/${n}`);
- const a=+$('ef').value||1,b=+$('et').value||999,today=new Date().toISOString().slice(0,10);
+async function tvm(){try{const id=S.d.external_ids?.imdb_id,sh=await(await fetch('https://api.tvmaze.com/lookup/shows?imdb='+id)).json();return await(await fetch(`https://api.tvmaze.com/shows/${sh.id}/episodes`)).json()}catch(e){return null}}
+async function loadSeason(){try{msg('Loading…');const n=+$('sn').value,s=await tm(`/tv/${S.d.id}/season/${n}`),l=await tvm(),
+ a=+$('ef').value||1,b=+$('et').value||999,today=new Date().toISOString().slice(0,10),force=$('fu').checked,fill=[];
  const sel=s.episodes.filter(e=>e.episode_number>=a&&e.episode_number<=b);
- const aired=sel.filter(e=>e.air_date&&e.air_date<=today),un=sel.filter(e=>!(e.air_date&&e.air_date<=today));
- flags=flags.filter(f=>!/^(Not aired|Season is new|Source|TMDB and TVmaze|TVmaze)/.test(f));
- if(un.length)flags.push('Not aired yet, excluded: '+un.map(e=>'E'+pad(e.episode_number)+' '+(e.air_date||'TBA')).join(', '));
- const last=aired.at(-1)?.air_date;if(last&&(Date.now()-new Date(last))/864e5<45)flags.push('Season is new or ongoing: ratings are early and volatile.');
- S.sn=n;S.season=s;S.eps=aired;await cross();render();
+ sel.forEach(e=>{const m=l&&l.find(x=>x.season==n&&x.number==e.episode_number),k='E'+pad(e.episode_number);if(!m)return;
+  if((!e.air_date&&m.airdate)||(e.air_date>today&&m.airdate&&m.airdate<=today)){e.air_date=m.airdate;fill.push(k+' date')}
+  if((!e.name||/^Episode \d+$/.test(e.name))&&m.name){e.name=m.name;fill.push(k+' title')}
+  if(!e.overview&&m.summary){e.overview=m.summary.replace(/<[^>]+>/g,'').trim();fill.push(k+' plot')}
+  if(!e.runtime&&m.runtime){e.runtime=m.runtime;fill.push(k+' runtime')}});
+ const ok=e=>force||(e.air_date&&e.air_date<=today),aired=sel.filter(ok),un=sel.filter(e=>!ok(e));
+ flags=flags.filter(f=>!/^(Not aired|Season is new|Source|TMDB and TVmaze|TVmaze|Filled)/.test(f));
+ if(fill.length)flags.push('TMDB was missing data, filled from TVmaze: '+fill.join(', ')+'. Check these before saving.');
+ if(un.length)flags.push('Not aired yet, excluded: '+un.map(e=>'E'+pad(e.episode_number)+' '+(e.air_date||'no date')).join(', ')+'. Tick "Include episodes not yet marked as aired" if they have actually aired.');
+ const last=aired.filter(e=>e.air_date).at(-1)?.air_date;if(last&&(Date.now()-new Date(last))/864e5<45)flags.push('Season is new or ongoing: ratings are early and volatile.');
+ S.sn=n;S.season=s;S.eps=aired;await cross(l);render();
  }catch(x){msg(x.message)}}
-async function cross(){try{const id=S.d.external_ids?.imdb_id,sh=await(await fetch('https://api.tvmaze.com/lookup/shows?imdb='+id)).json(),
- l=await(await fetch(`https://api.tvmaze.com/shows/${sh.id}/episodes`)).json(),n=s=>(s||'').toLowerCase().replace(/[^a-z0-9]/g,''),df=[];
+async function cross(l){try{if(!l)throw 0;const n=s=>(s||'').toLowerCase().replace(/[^a-z0-9]/g,''),df=[];
  S.eps.forEach(e=>{const m=l.find(x=>x.season==S.sn&&x.number==e.episode_number),k='E'+pad(e.episode_number);
   if(!m)df.push(k+' missing on TVmaze');else{if(n(m.name)!=n(e.name))df.push(`${k} title: TMDB "${e.name}" vs TVmaze "${m.name}"`);
   if(m.airdate&&e.air_date&&m.airdate!=e.air_date)df.push(`${k} date: TMDB ${e.air_date} vs TVmaze ${m.airdate}`)}});
@@ -85,7 +96,9 @@ function render(){const{ty,d,om}=S;let h='';
  if(ty=='movie')h+=`<label>Title<input id="mt0" value="${esc(d.title)}"></label><label>Runtime (min)<input id="mr" value="${d.runtime||''}"></label><label>Tagline<input id="mg" value="${esc(d.tagline)}"></label><label>Plot<textarea id="mp" rows="5">${esc(d.overview)}</textarea></label>`;
  else h+=`<label>Season plot<textarea id="sp" rows="3">${esc(S.season.overview||d.overview)}</textarea></label><h3>Season ${S.sn} ratings</h3><p class="m">Optional. Type the season scores from rottentomatoes.com; they go in the season file only.</p><div class="g"><input id="mt" placeholder="Tomatometer %"><input id="mc" placeholder="Review count"><input id="pm" placeholder="Popcornmeter %"></div><h3>Episodes</h3>`+
   S.eps.map((e,i)=>`<div class="ep"><div class="h"><input data-i="${i}" data-f="name" value="${esc(e.name)}" aria-label="Title E${e.episode_number}"><input data-i="${i}" data-f="rt" value="${e.runtime||''}" placeholder="min" aria-label="Runtime"></div><textarea data-i="${i}" data-f="ov" rows="3" aria-label="Plot">${esc(e.overview)}</textarea></div>`).join('')||'<p class="m">No aired episodes in that range.</p>';
- if(ty=='movie'||S.eps.length)h+=`<button id="dl">${ty=='tv'?'Download zip':'Download movie.nfo'}</button>`;
+ if(ty=='movie'||S.eps.length){const I=S.img;
+  h+='<h3>Images</h3><div class="im">'+[['poster','Poster'],['backdrop','Backdrop'],['logo','Logo']].map(([k,t])=>I[k]?`<label><input type="checkbox" id="i_${k}" style="width:auto"> ${t}<img src="https://image.tmdb.org/t/p/w185${I[k]}" alt="${t}"></label>`:`<label class="m">${t}: not available</label>`).join('')+(ty=='tv'?(S.season.poster_path?`<label><input type="checkbox" id="i_season" style="width:auto"> Season ${S.sn} poster<img src="https://image.tmdb.org/t/p/w185${S.season.poster_path}" alt="Season poster"></label>`:'<label class="m">Season poster: not available</label>')+(S.eps.some(e=>e.still_path)?`<label><input type="checkbox" id="i_thumbs" style="width:auto"> Episode thumbnails (${S.eps.filter(e=>e.still_path).length} of ${S.eps.length})</label>`:'<label class="m">Episode thumbnails: not available</label>'):'')+'</div><label>Image size<select id="isz"><option value="o">Original (largest)</option><option value="m">Medium (smaller files)</option></select></label>';
+  h+='<button id="dl">Download files</button>'}
  $('out').innerHTML=h;if($('dl'))$('dl').onclick=download}
 const H='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n';
 function ratings(l){l=l.filter(r=>r.value!=null&&r.value!==''&&!isNaN(r.value));if(!l.length)return'';
@@ -107,12 +120,25 @@ function seasonNfo(){const s=S.season,p=$('sp').value;
 function epNfo(e,i){const q=f=>document.querySelector(`[data-i="${i}"][data-f="${f}"]`).value,p=q('ov');
  return H+'<episodedetails>\n'+tag('title',q('name'))+tag('showtitle',S.d.name)+tag('season',S.sn)+tag('episode',e.episode_number)+tag('aired',e.air_date)+tag('premiered',e.air_date)+tag('runtime',q('rt'))+tag('plot',p)+crew(e.crew,['Director']).map(n=>tag('director',n)).join('')+crew(e.crew,['Writer','Screenplay','Teleplay']).map(n=>tag('credits',n)).join('')+tag('studio',(S.d.networks||[])[0]?.name)+tag('mpaa',tvMpaa())+acts(e.guest_stars)+'</episodedetails>\n'}
 function save(n,c){const a=document.createElement('a');a.href=URL.createObjectURL(c instanceof Blob?c:new Blob([c],{type:'text/xml'}));a.download=n;a.click()}
-function download(){const f={};
+const getImg=async(p,w,sz)=>{const r=await fetch(`https://image.tmdb.org/t/p/${sz=='o'?'original':w}${p}`);if(!r.ok)throw 0;return r.blob()};
+async function download(){const f={},bin={},btn=$('dl');
  if(S.ty=='movie')f['movie.nfo']=movieNfo();
  else{f['tvshow.nfo']=tvNfo();f[`season${pad(S.sn)}.nfo`]=seasonNfo();const sh=safe(S.d.name);S.eps.forEach((e,i)=>f[`${sh} S${pad(S.sn)}E${pad(e.episode_number)}.nfo`]=epNfo(e,i))}
  const bad=Object.keys(f).filter(k=>new DOMParser().parseFromString(f[k],'text/xml').querySelector('parsererror'));
  if(bad.length){alert('Invalid XML in: '+bad.join(', '));return}
- if(S.ty=='movie')return save('movie.nfo',f['movie.nfo']);
- const z=new JSZip();for(const k in f)z.file(k,f[k]);
- z.generateAsync({type:'blob'}).then(b=>save(`${safe(S.d.name)} S${pad(S.sn)} NFO.zip`,b))}
+ btn.disabled=true;btn.textContent='Working…';
+ try{const sz=$('isz').value,W={poster:'w780',backdrop:'w1280',logo:'w500'},N={poster:'poster',backdrop:'fanart',logo:'logo'},fail=[];
+  for(const k of['poster','backdrop','logo']){const c=$('i_'+k);if(!c||!c.checked)continue;
+   try{const p=S.img[k],r=await fetch(`https://image.tmdb.org/t/p/${sz=='o'?'original':W[k]}${p}`);if(!r.ok)throw 0;bin[N[k]+p.slice(p.lastIndexOf('.'))]=await r.blob()}catch(e){fail.push(k)}}
+  if(S.ty=='tv'){const ex=p=>p.slice(p.lastIndexOf('.'));
+   if($('i_season')&&$('i_season').checked&&S.season.poster_path){const p=S.season.poster_path;try{bin[`season${pad(S.sn)}-poster${ex(p)}`]=await getImg(p,'w780',sz)}catch(e){fail.push('season poster')}}
+   if($('i_thumbs')&&$('i_thumbs').checked){let nf=0;const sh=safe(S.d.name);
+    for(const e of S.eps){if(!e.still_path)continue;try{bin[`${sh} S${pad(S.sn)}E${pad(e.episode_number)}-thumb${ex(e.still_path)}`]=await getImg(e.still_path,'w780',sz)}catch(x){nf++}}
+    if(nf)fail.push(nf+' episode thumbnail(s)')}}
+  if(fail.length)alert('Could not download: '+fail.join(', ')+'. Your browser may block image downloads. The rest is included.');
+  if(S.ty=='movie'&&!Object.keys(bin).length)return save('movie.nfo',f['movie.nfo']);
+  const z=new JSZip();for(const k in f)z.file(k,f[k]);for(const k in bin)z.file(k,bin[k]);
+  const b=await z.generateAsync({type:'blob'});
+  save(S.ty=='movie'?`${safe(S.d.title)} NFO.zip`:`${safe(S.d.name)} S${pad(S.sn)} NFO.zip`,b)
+ }finally{btn.disabled=false;btn.textContent='Download files'}}
 </script></body></html>
