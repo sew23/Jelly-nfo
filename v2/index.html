@@ -2,6 +2,11 @@
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>NFO Maker</title>
 <link rel="stylesheet" href="style.css?v=1">
+<script>
+window.addEventListener('error',function(e){var t=e.target;if(!t||!t.src)return;var b=document.getElementById('lf');
+if(!b){b=document.createElement('p');b.id='lf';b.style.cssText='background:#e0a82e;color:#12161c;padding:10px;margin:0';document.body.insertBefore(b,document.body.firstChild)}
+b.dataset.m=(b.dataset.m?b.dataset.m+', ':'')+t.src.split('/').pop().split('?')[0];b.textContent='Could not load: '+b.dataset.m+'. Check these file names in the v2 folder.'},true);
+</script>
 </head><body><main>
 <h1>NFO Maker</h1>
 <details id="kd"><summary>API keys (stored in this browser only)</summary><div>
