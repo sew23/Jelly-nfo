@@ -14,6 +14,7 @@ b.dataset.m=(b.dataset.m?b.dataset.m+', ':'')+t.src.split('/').pop().split('?')[
 <form id="sf"><select id="ty"><option value="tv">TV show</option><option value="movie">Movie</option></select>
 <input id="q" placeholder="Search a title" required><button>Search</button></form>
 <details id="ld"><summary>Movie list (many movies at once)</summary><div><textarea id="ml" rows="6" placeholder="One movie per line, e.g. Mayday 2021"></textarea><button id="lm">Match titles</button></div><div id="lr"></div></details>
+<details id="rd"><summary>Rename videos (make a .bat script)</summary><div><input id="rs" placeholder="Show name, e.g. Ted Lasso"><textarea id="rl" rows="6" placeholder="Paste file names, one per line (output of dir /b)"></textarea><button id="rp">Preview renames</button></div><div id="rr"></div></details>
 <div id="res"></div><div id="cfg"></div><div id="out"></div>
 <p class="m" style="font-size:12px">This product uses the TMDB API but is not endorsed or certified by TMDB.</p>
 </main>
@@ -23,5 +24,6 @@ b.dataset.m=(b.dataset.m?b.dataset.m+', ':'')+t.src.split('/').pop().split('?')[
 <script src="nfo.js?v=2"></script>
 <script src="export.js?v=2"></script>
 <script src="list.js?v=1"></script>
+<script src="rename.js?v=1"></script>
 <script src="main.js?v=2"></script>
 </body></html>
