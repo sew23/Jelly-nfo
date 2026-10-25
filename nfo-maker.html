@@ -97,7 +97,7 @@ function render(){const{ty,d,om}=S;let h='';
  else h+=`<label>Season plot<textarea id="sp" rows="3">${esc(S.season.overview||d.overview)}</textarea></label><h3>Season ${S.sn} ratings</h3><p class="m">Optional. Type the season scores from rottentomatoes.com; they go in the season file only.</p><div class="g"><input id="mt" placeholder="Tomatometer %"><input id="mc" placeholder="Review count"><input id="pm" placeholder="Popcornmeter %"></div><h3>Episodes</h3>`+
   S.eps.map((e,i)=>`<div class="ep"><div class="h"><input data-i="${i}" data-f="name" value="${esc(e.name)}" aria-label="Title E${e.episode_number}"><input data-i="${i}" data-f="rt" value="${e.runtime||''}" placeholder="min" aria-label="Runtime"></div><textarea data-i="${i}" data-f="ov" rows="3" aria-label="Plot">${esc(e.overview)}</textarea></div>`).join('')||'<p class="m">No aired episodes in that range.</p>';
  if(ty=='movie'||S.eps.length){const I=S.img;
-  h+='<h3>Images</h3><div class="im">'+[['poster','Poster'],['backdrop','Backdrop'],['logo','Logo']].map(([k,t])=>I[k]?`<label><input type="checkbox" id="i_${k}" style="width:auto"> ${t}<img src="https://image.tmdb.org/t/p/w185${I[k]}" alt="${t}"></label>`:`<label class="m">${t}: not available</label>`).join('')+(ty=='tv'?(S.season.poster_path?`<label><input type="checkbox" id="i_season" style="width:auto"> Season ${S.sn} poster<img src="https://image.tmdb.org/t/p/w185${S.season.poster_path}" alt="Season poster"></label>`:'<label class="m">Season poster: not available</label>')+(S.eps.some(e=>e.still_path)?`<label><input type="checkbox" id="i_thumbs" style="width:auto"> Episode thumbnails (${S.eps.filter(e=>e.still_path).length} of ${S.eps.length})</label>`:'<label class="m">Episode thumbnails: not available</label>'):'')+'</div><label>Image size<select id="isz"><option value="o">Original (largest)</option><option value="m">Medium (smaller files)</option></select></label>';
+  h+='<h3>Images</h3><div class="im">'+[['poster','Poster'],['backdrop','Backdrop'],['logo','Logo']].map(([k,t])=>I[k]?`<label><input type="checkbox" id="i_${k}" style="width:auto"> ${t}<img src="https://image.tmdb.org/t/p/w185${I[k]}" alt="${t}"></label>`:`<label class="m">${t}: not available</label>`).join('')+(ty=='tv'?(S.season.poster_path?`<label><input type="checkbox" id="i_season" style="width:auto"> Season ${S.sn} poster<img src="https://image.tmdb.org/t/p/w185${S.season.poster_path}" alt="Season poster"></label>`:'<label class="m">Season poster: not available</label>')+(S.eps.some(e=>e.still_path)?`<label><input type="checkbox" id="i_thumbs" style="width:auto"> Episode thumbnails (${S.eps.filter(e=>e.still_path).length} of ${S.eps.length})</label>`:'<label class="m">Episode thumbnails: not available</label>'):'')+'</div><label>Image size<select id="isz"><option value="m">Medium (faster, smaller files)</option><option value="o">Original (largest, slower)</option></select></label>';
   h+='<button id="dl">Download files</button>'}
  $('out').innerHTML=h;if($('dl'))$('dl').onclick=download}
 const H='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n';
@@ -120,25 +120,25 @@ function seasonNfo(){const s=S.season,p=$('sp').value;
 function epNfo(e,i){const q=f=>document.querySelector(`[data-i="${i}"][data-f="${f}"]`).value,p=q('ov');
  return H+'<episodedetails>\n'+tag('title',q('name'))+tag('showtitle',S.d.name)+tag('season',S.sn)+tag('episode',e.episode_number)+tag('aired',e.air_date)+tag('premiered',e.air_date)+tag('runtime',q('rt'))+tag('plot',p)+crew(e.crew,['Director']).map(n=>tag('director',n)).join('')+crew(e.crew,['Writer','Screenplay','Teleplay']).map(n=>tag('credits',n)).join('')+tag('studio',(S.d.networks||[])[0]?.name)+tag('mpaa',tvMpaa())+acts(e.guest_stars)+'</episodedetails>\n'}
 function save(n,c){const a=document.createElement('a');a.href=URL.createObjectURL(c instanceof Blob?c:new Blob([c],{type:'text/xml'}));a.download=n;a.click()}
-const getImg=async(p,w,sz)=>{const r=await fetch(`https://image.tmdb.org/t/p/${sz=='o'?'original':w}${p}`);if(!r.ok)throw 0;return r.blob()};
+async function pool(t,n,fn){let i=0;await Promise.all(Array.from({length:n},async()=>{while(i<t.length)await fn(t[i++])}))}
 async function download(){const f={},bin={},btn=$('dl');
  if(S.ty=='movie')f['movie.nfo']=movieNfo();
  else{f['tvshow.nfo']=tvNfo();f[`season${pad(S.sn)}.nfo`]=seasonNfo();const sh=safe(S.d.name);S.eps.forEach((e,i)=>f[`${sh} S${pad(S.sn)}E${pad(e.episode_number)}.nfo`]=epNfo(e,i))}
  const bad=Object.keys(f).filter(k=>new DOMParser().parseFromString(f[k],'text/xml').querySelector('parsererror'));
  if(bad.length){alert('Invalid XML in: '+bad.join(', '));return}
- btn.disabled=true;btn.textContent='Working…';
- try{const sz=$('isz').value,W={poster:'w780',backdrop:'w1280',logo:'w500'},N={poster:'poster',backdrop:'fanart',logo:'logo'},fail=[];
-  for(const k of['poster','backdrop','logo']){const c=$('i_'+k);if(!c||!c.checked)continue;
-   try{const p=S.img[k],r=await fetch(`https://image.tmdb.org/t/p/${sz=='o'?'original':W[k]}${p}`);if(!r.ok)throw 0;bin[N[k]+p.slice(p.lastIndexOf('.'))]=await r.blob()}catch(e){fail.push(k)}}
-  if(S.ty=='tv'){const ex=p=>p.slice(p.lastIndexOf('.'));
-   if($('i_season')&&$('i_season').checked&&S.season.poster_path){const p=S.season.poster_path;try{bin[`season${pad(S.sn)}-poster${ex(p)}`]=await getImg(p,'w780',sz)}catch(e){fail.push('season poster')}}
-   if($('i_thumbs')&&$('i_thumbs').checked){let nf=0;const sh=safe(S.d.name);
-    for(const e of S.eps){if(!e.still_path)continue;try{bin[`${sh} S${pad(S.sn)}E${pad(e.episode_number)}-thumb${ex(e.still_path)}`]=await getImg(e.still_path,'w780',sz)}catch(x){nf++}}
-    if(nf)fail.push(nf+' episode thumbnail(s)')}}
+ btn.disabled=true;
+ try{const sz=$('isz').value,W={poster:'w780',backdrop:'w1280',logo:'w500'},N={poster:'poster',backdrop:'fanart',logo:'logo'},ex=p=>p.slice(p.lastIndexOf('.')),
+   U=(p,w)=>`https://image.tmdb.org/t/p/${sz=='o'?'original':w}${p}`,tasks=[],fail=[];
+  for(const k of['poster','backdrop','logo']){const c=$('i_'+k);if(c&&c.checked){const p=S.img[k];tasks.push({n:N[k]+ex(p),u:U(p,W[k]),l:k})}}
+  if(S.ty=='tv'){
+   if($('i_season')&&$('i_season').checked&&S.season.poster_path){const p=S.season.poster_path;tasks.push({n:`season${pad(S.sn)}-poster${ex(p)}`,u:U(p,'w780'),l:'season poster'})}
+   if($('i_thumbs')&&$('i_thumbs').checked){const sh=safe(S.d.name);S.eps.forEach(e=>{if(e.still_path)tasks.push({n:`${sh} S${pad(S.sn)}E${pad(e.episode_number)}-thumb${ex(e.still_path)}`,u:U(e.still_path,'w780'),l:'thumbnail E'+pad(e.episode_number)})})}}
+  let done=0;const tick=()=>{btn.textContent=tasks.length?`Downloading images ${done}/${tasks.length}…`:'Working…'};tick();
+  await pool(tasks,4,async t=>{try{const r=await fetch(t.u);if(!r.ok)throw 0;bin[t.n]=await r.blob()}catch(e){fail.push(t.l)}done++;tick()});
   if(fail.length)alert('Could not download: '+fail.join(', ')+'. Your browser may block image downloads. The rest is included.');
   if(S.ty=='movie'&&!Object.keys(bin).length)return save('movie.nfo',f['movie.nfo']);
   const z=new JSZip();for(const k in f)z.file(k,f[k]);for(const k in bin)z.file(k,bin[k]);
-  const b=await z.generateAsync({type:'blob'});
+  const b=await z.generateAsync({type:'blob'},m=>{btn.textContent='Zipping '+Math.round(m.percent)+'%'});
   save(S.ty=='movie'?`${safe(S.d.title)} NFO.zip`:`${safe(S.d.name)} S${pad(S.sn)} NFO.zip`,b)
  }finally{btn.disabled=false;btn.textContent='Download files'}}
 </script></body></html>
