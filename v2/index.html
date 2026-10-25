@@ -13,13 +13,15 @@ b.dataset.m=(b.dataset.m?b.dataset.m+', ':'')+t.src.split('/').pop().split('?')[
 <input id="tk" placeholder="TMDB API key (v3)" autocomplete="off"><input id="ok" placeholder="OMDb API key" autocomplete="off"><button id="sk">Save keys</button></div></details>
 <form id="sf"><select id="ty"><option value="tv">TV show</option><option value="movie">Movie</option></select>
 <input id="q" placeholder="Search a title" required><button>Search</button></form>
+<details id="ld"><summary>Movie list (many movies at once)</summary><div><textarea id="ml" rows="6" placeholder="One movie per line, e.g. Mayday 2021"></textarea><button id="lm">Match titles</button></div><div id="lr"></div></details>
 <div id="res"></div><div id="cfg"></div><div id="out"></div>
 <p class="m" style="font-size:12px">This product uses the TMDB API but is not endorsed or certified by TMDB.</p>
 </main>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="utils.js?v=1"></script>
 <script src="api.js?v=1"></script>
-<script src="nfo.js?v=1"></script>
-<script src="export.js?v=1"></script>
-<script src="main.js?v=1"></script>
+<script src="nfo.js?v=2"></script>
+<script src="export.js?v=2"></script>
+<script src="list.js?v=1"></script>
+<script src="main.js?v=2"></script>
 </body></html>
